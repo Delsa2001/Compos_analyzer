@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Compost Monitor</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      font-size: 1.8rem;
+      margin-bottom: 8px;
+      color: #a8e063;
+    }
+    #last-updated {
+      text-align: center;
+      font-size: 0.85rem;
+      color: #888;
+      margin-bottom: 30px;
+    }
+
+    /* Status banner */
+    #status-banner {
+      text-align: center;
+      font-size: 2rem;
+      font-weight: bold;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 12px;
+      transition: background 0.5s;
+    }
+    .status-ready   { background: #1e7e34; color: #fff; }
+    .status-dry     { background: #c0392b; color: #fff; }
+    .status-wet     { background: #1a6fa3; color: #fff; }
+    .status-unknown { background: #444;    color: #aaa; }
+
+    /* Agreement badge */
+    #agreement-badge {
+      text-align: center;
+      margin-bottom: 24px;
+      font-size: 0.85rem;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 14px;
+      border-radius: 20px;
+      font-weight: bold;
+    }
+    .badge-agree    { background: #1e7e34; color: #fff; }
+    .badge-disagree { background: #e67e22; color: #fff; }
+    .badge-unknown  { background: #444;    color: #aaa; }
+
+    /* Source labels under banner */
+    .source-row {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      margin-bottom: 30px;
+      flex-wrap: wrap;
+    }
+    .source-box {
+      background: #16213e;
+      border-radius: 10px;
+      padding: 10px 20px;
+      text-align: center;
+      min-width: 140px;
+    }
+    .source-box .src-label {
+      font-size: 0.72rem;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 4px;
+    }
+    .source-box .src-value {
+      font-size: 0.95rem;
+      font-weight: bold;
+    }
+
+    /* Gauge cards */
+    .gauges {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 30px;
+    }
+    .card {
+      background: #16213e;
+      border-radius: 12px;
+      padding: 24px 30px;
+      text-align: center;
+      min-width: 160px;
+      flex: 1;
+      max-width: 200px;
+    }
+    .card .label {
+      font-size: 0.85rem;
+      color: #888;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .card .value {
+      font-size: 2.4rem;
+      font-weight: bold;
+      color: #a8e063;
+    }
+    .card .unit {
+      font-size: 0.9rem;
+      color: #666;
+      margin-top: 4px;
+    }
+
+    /* Commands */
+    .commands {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .commands h2 {
+      font-size: 1rem;
+      color: #888;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .btn {
+      padding: 10px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      margin: 0 6px;
+      transition: opacity 0.2s;
+    }
+    .btn:hover  { opacity: 0.85; }
+    .btn-reset  { background: #e74c3c; color: #fff; }
+    .btn-status { background: #2980b9; color: #fff; }
+
+    /* History table */
+    .history h2 {
+      font-size: 1rem;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+    th {
+      background: #0f3460;
+      padding: 10px;
+      text-align: left;
+      color: #a8e063;
+    }
+    td {
+      padding: 9px 10px;
+      border-bottom: 1px solid #222;
+    }
+    tr:hover td { background: #1c2a45; }
+    .pill {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: bold;
+    }
+    .pill-ready { background: #1e7e34; color: #fff; }
+    .pill-dry   { background: #c0392b; color: #fff; }
+    .pill-wet   { background: #1a6fa3; color: #fff; }
+    .pill-unk   { background: #555;    color: #ccc; }
+
+    .agree-tick    { color: #2ecc71; font-weight: bold; }
+    .disagree-tick { color: #e67e22; font-weight: bold; }
+
+    #cmd-feedback {
+      text-align: center;
+      margin-top: 10px;
+      font-size: 0.85rem;
+      color: #a8e063;
+      min-height: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🌱 Compost Monitor</h1>
+  <div id="last-updated">Waiting for data...</div>
+
+  <!-- Status Banner (shows cloud result as primary) -->
+  <div id="status-banner" class="status-unknown">-- NO DATA --</div>
+
+  <!-- Agreement badge -->
+  <div id="agreement-badge">
+    <span class="badge badge-unknown">Waiting...</span>
+  </div>
+
+  <!-- ESP32 vs Cloud source comparison -->
+  <div class="source-row">
+    <div class="source-box">
+      <div class="src-label">📟 ESP32 Result</div>
+      <div class="src-value" id="src-esp32">--</div>
+    </div>
+    <div class="source-box">
+      <div class="src-label">☁️ Cloud Result</div>
+      <div class="src-value" id="src-cloud">--</div>
+    </div>
+  </div>
+
+  <!-- Sensor Gauges -->
+  <div class="gauges">
+    <div class="card">
+      <div class="label">Temperature</div>
+      <div class="value" id="val-temp">--</div>
+      <div class="unit">°C</div>
+    </div>
+    <div class="card">
+      <div class="label">Moisture</div>
+      <div class="value" id="val-moisture">--</div>
+      <div class="unit">ADC</div>
+    </div>
+    <div class="card">
+      <div class="label">Methane</div>
+      <div class="value" id="val-methane">--</div>
+      <div class="unit">ADC</div>
+    </div>
+  </div>
+
+  <!-- Commands -->
+  <div class="commands">
+    <h2>Send Command to ESP32</h2>
+    <button class="btn btn-reset"  onclick="sendCommand('reset')">🔄 Reset Device</button>
+    <button class="btn btn-status" onclick="sendCommand('status')">📡 Request Status</button>
+    <div id="cmd-feedback"></div>
+  </div>
+
+  <!-- History Table -->
+  <div class="history">
+    <h2>Recent Readings</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Temp (°C)</th>
+          <th>Moisture</th>
+          <th>Methane</th>
+          <th>ESP32</th>
+          <th>Cloud</th>
+          <th>Match</th>
+        </tr>
+      </thead>
+      <tbody id="history-body">
+        <tr><td colspan="7" style="text-align:center;color:#666">No readings yet</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    // ── Helpers ────────────────────────────────────────────────────────────
+    function pillClass(result) {
+      if (result === 'COMPOST_READY') return 'pill-ready';
+      if (result === 'TOO_DRY')       return 'pill-dry';
+      if (result === 'TOO_WET')       return 'pill-wet';
+      return 'pill-unk';
+    }
+
+    function bannerClass(result) {
+      if (result === 'COMPOST_READY') return 'status-ready';
+      if (result === 'TOO_DRY')       return 'status-dry';
+      if (result === 'TOO_WET')       return 'status-wet';
+      return 'status-unknown';
+    }
+
+    function bannerText(result) {
+      if (result === 'COMPOST_READY') return '✅ COMPOST READY';
+      if (result === 'TOO_DRY')       return '🔴 TOO DRY — Add Water';
+      if (result === 'TOO_WET')       return '💧 TOO WET — Aerate';
+      return result || '-- NO DATA --';
+    }
+
+    function shortLabel(result) {
+      if (result === 'COMPOST_READY') return '✅ Ready';
+      if (result === 'TOO_DRY')       return '🔴 Too Dry';
+      if (result === 'TOO_WET')       return '💧 Too Wet';
+      return result || '--';
+    }
+
+    // ── Fetch latest reading and update gauges ─────────────────────────────
+    async function fetchLatest() {
+      try {
+        const res  = await fetch('/latest');
+        const data = await res.json();
+        if (data.status === 'no data') return;
+
+        // Gauges
+        document.getElementById('val-temp').textContent     = data.temperature.toFixed(1);
+        document.getElementById('val-moisture').textContent = Math.round(data.moisture);
+        document.getElementById('val-methane').textContent  = Math.round(data.methane);
+
+        // Banner — driven by cloud result (primary source of truth)
+        const primary = data.cloud_result || data.result;
+        const banner  = document.getElementById('status-banner');
+        banner.textContent = bannerText(primary);
+        banner.className   = bannerClass(primary);
+
+        // Source boxes
+        document.getElementById('src-esp32').textContent = shortLabel(data.result);
+        document.getElementById('src-cloud').textContent = shortLabel(data.cloud_result);
+
+        // Agreement badge
+        const badge = document.getElementById('agreement-badge');
+        const agree = data.result === data.cloud_result;
+        badge.innerHTML = agree
+          ? '<span class="badge badge-agree">✔ ESP32 &amp; Cloud agree</span>'
+          : '<span class="badge badge-disagree">⚠ ESP32 &amp; Cloud disagree</span>';
+
+        // Timestamp
+        const t = new Date(data.timestamp);
+        document.getElementById('last-updated').textContent =
+          'Last updated: ' + t.toLocaleTimeString();
+
+      } catch (e) {
+        console.error('fetchLatest error:', e);
+      }
+    }
+
+    // ── Fetch history and update table ─────────────────────────────────────
+    async function fetchHistory() {
+      try {
+        const res   = await fetch('/readings');
+        const rows  = await res.json();
+        const tbody = document.getElementById('history-body');
+        if (!rows.length) return;
+
+        tbody.innerHTML = rows.map(r => {
+          const t     = new Date(r.timestamp).toLocaleTimeString();
+          const agree = r.result === r.cloud_result;
+          const match = agree
+            ? '<span class="agree-tick">✔</span>'
+            : '<span class="disagree-tick">✘</span>';
+          return `<tr>
+            <td>${t}</td>
+            <td>${r.temperature.toFixed(1)}</td>
+            <td>${Math.round(r.moisture)}</td>
+            <td>${Math.round(r.methane)}</td>
+            <td><span class="pill ${pillClass(r.result)}">${r.result}</span></td>
+            <td><span class="pill ${pillClass(r.cloud_result)}">${r.cloud_result}</span></td>
+            <td>${match}</td>
+          </tr>`;
+        }).join('');
+
+      } catch (e) {
+        console.error('fetchHistory error:', e);
+      }
+    }
+
+    // ── Send command ────────────────────────────────────────────────────────
+    async function sendCommand(cmd) {
+      try {
+        await fetch('/command', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ command: cmd })
+        });
+        const fb = document.getElementById('cmd-feedback');
+        fb.textContent = `Command "${cmd}" sent ✓`;
+        setTimeout(() => fb.textContent = '', 3000);
+      } catch (e) {
+        console.error('sendCommand error:', e);
+      }
+    }
+
+    // ── Poll every 5 seconds ────────────────────────────────────────────────
+    fetchLatest();
+    fetchHistory();
+    setInterval(() => { fetchLatest(); fetchHistory(); }, 5000);
+  </script>
+
+</body>
+</html>
